@@ -27,12 +27,6 @@ using namespace chrono;
 static const int MAX_MESSAGE_SIZE = 256;
 
 int main(int argc, const char **argv){
-    string hostname = string(argv[1]);
-    int port = atoi(argv[2]);
-    int size = atoi(argv[3]);
-    string input = string(argv[4]);
-    string log = string(argv[5]);
-
     int listen_port = atoi(argv[1]);
     int window_size = atoi(argv[2]);
     string store_dir = string(argv[3]);
