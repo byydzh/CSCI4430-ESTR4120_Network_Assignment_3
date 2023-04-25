@@ -55,11 +55,11 @@ vector<string> read_file_chunks(const string& file_path) {
         streamsize file_size = file.tellg();
         file.seekg(0, ios::beg);
 
-        int num_strings = (file_size + MAX_MESSAGE_SIZE - 1) / MAX_MESSAGE_SIZE;
+        int num_strings = (file_size + MAX_ACTUAL_SIZE - 1) / MAX_ACTUAL_SIZE;
 
         for (int i = 0; i < num_strings; i++) {
-            string buffer(MAX_MESSAGE_SIZE, '\0');
-            file.read(&buffer[0], MAX_MESSAGE_SIZE);
+            string buffer(MAX_ACTUAL_SIZE, '\0');
+            file.read(&buffer[0], MAX_ACTUAL_SIZE);
             streamsize bytes_read = file.gcount();
             buffer.resize(bytes_read);
             result.push_back(buffer);
@@ -117,7 +117,8 @@ int main(int argc, const char **argv){
     // send the <START, R, 0, 0> 
     slen = sizeof(addr);
     memcpy(buf, &myHeader, sizeof(myHeader));
-    if (sendto(sock, buf, strlen(buf), MSG_NOSIGNAL, (struct sockaddr *) &addr, slen)==-1)
+    //printf("%u [%s]\n",myHeader.seqNum, buf);
+    if (sendto(sock, buf, sizeof(buf), MSG_NOSIGNAL, (struct sockaddr *) &addr, slen)==-1)
     {
         perror("wSender error with first sendto().\n");
         exit(1);
@@ -131,7 +132,7 @@ int main(int argc, const char **argv){
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
         if (elapsed >= 500){
             memcpy(buf, &myHeader, sizeof(myHeader));
-            sendto(sock, buf, strlen(buf), MSG_NOSIGNAL, (struct sockaddr *) &addr, slen);
+            sendto(sock, buf, sizeof(buf), MSG_NOSIGNAL, (struct sockaddr *) &addr, slen);
             out2log(log, myHeader.type, myHeader.seqNum, myHeader.length, myHeader.checksum);
             auto start = std::chrono::system_clock::now();
         }
@@ -146,11 +147,12 @@ int main(int argc, const char **argv){
     PacketHeader *ACK = (PacketHeader *)buf;
     out2log(log, ACK->type, ACK->seqNum, ACK->length, ACK->checksum);
 
-    if (ACK.type == 3 && myHeader.seqNum == ACK.seqNum){
+    if (ACK->type == 3 && myHeader.seqNum == ACK->seqNum){
         printf("wSender connection start!\n");
     }
     else{
         printf("wSender start failed.\n");
+        printf("%u %u %u %u",ACK->type, ACK->seqNum, ACK->length, ACK->checksum);
         close(sock);
         return 0;
     }
@@ -163,6 +165,7 @@ int main(int argc, const char **argv){
     for (int i = 0; i < chunks_num; ++i) {
         chunks_flag[i] = 0;
     }
+    chunks_num--;
 
     int send_ptr = 0;
     int mem_ptr;
@@ -176,9 +179,15 @@ int main(int argc, const char **argv){
             myHeader.type = 2;
             myHeader.length = chunks[send_ptr].length();
             myHeader.checksum = crc32(chunks[send_ptr].c_str(), myHeader.length);
-            string buf_str(myHeader, sizeof(myHeader));
-            buf_str = buf_str + chunks[send_ptr];
-            sendto(sock, buf_str.c_str(), buf_str.length(), MSG_NOSIGNAL, (struct sockaddr *) &addr, slen);
+            //printf("\n[%s]\n\n%d\n",chunks[send_ptr].c_str(),  myHeader.length);
+            char message[1472] = {0};
+            memcpy(message, &myHeader, sizeof(myHeader));
+            for(int k = 16;k<1472;k++){
+                message[k] = chunks[send_ptr][k-16];
+            }
+            //memcpy(buf, buf_str.c_str(), myHeader.length + WTP_HEADER);
+            //printf("\n[%s]\n\n%d\n",buf,  (int)sizeof(buf));
+            sendto(sock, message, sizeof(message), MSG_NOSIGNAL, (struct sockaddr *) &addr, slen);
             out2log(log, myHeader.type, myHeader.seqNum, myHeader.length, myHeader.checksum);
             send_ptr++;
         }
@@ -192,7 +201,7 @@ int main(int argc, const char **argv){
                 buf[valread] = '\0';
                 PacketHeader *ACK = (PacketHeader *)buf;
                 send_ptr = ACK->seqNum;
-                out2log(log, ACK.type, ACK.seqNum, ACK.length, ACK.checksum);
+                out2log(log, ACK->type, ACK->seqNum, ACK->length, ACK->checksum);
                 break;
             }
 
@@ -216,13 +225,13 @@ int main(int argc, const char **argv){
     myHeader.length = 0;
     myHeader.checksum = 0;
     memcpy(buf, &myHeader, sizeof(myHeader));
-    if (sendto(sock, buf, strlen(buf), MSG_NOSIGNAL, (struct sockaddr *) &addr, slen)==-1)
+    if (sendto(sock, buf, sizeof(buf), MSG_NOSIGNAL, (struct sockaddr *) &addr, slen)==-1)
     {
         perror("wSender error with last sendto().\n");
         exit(1);
     }
     out2log(log, myHeader.type, myHeader.seqNum, myHeader.length, myHeader.checksum);
-    auto start = std::chrono::system_clock::now();
+    start = std::chrono::system_clock::now();
 
     // Receiver: <ACK, R, 0, 0>
     while(1){
@@ -230,7 +239,7 @@ int main(int argc, const char **argv){
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
         if (elapsed >= 500){
             memcpy(buf, &myHeader, sizeof(myHeader));
-            sendto(sock, buf, strlen(buf), MSG_NOSIGNAL, (struct sockaddr *) &addr, slen);
+            sendto(sock, buf, sizeof(buf), MSG_NOSIGNAL, (struct sockaddr *) &addr, slen);
             out2log(log, myHeader.type, myHeader.seqNum, myHeader.length, myHeader.checksum);
             auto start = std::chrono::system_clock::now();
         }
@@ -238,20 +247,14 @@ int main(int argc, const char **argv){
         valread = recvfrom(sock, buf, MAX_MESSAGE_SIZE, MSG_WAITALL, (struct sockaddr *) &addr, &slen);
         if (valread == -1)
             continue;
-        else
-            break;
-    }
-    buf[valread] = '\0';
-    PacketHeader *ACK = (PacketHeader *)buf;
-    out2log(log, ACK->type, ACK->seqNum, ACK->length, ACK->checksum);
+        else{
+            buf[valread] = '\0';
+            ACK = (PacketHeader *)buf;
+            out2log(log, ACK->type, ACK->seqNum, ACK->length, ACK->checksum);
+            if (ACK->type == 3 && myHeader.seqNum == ACK->seqNum)
+                break;
+        }
 
-    if (ACK.type == 3 && myHeader.seqNum == ACK.seqNum){
-        printf("wSender connection end!\n");
-    }
-    else{
-        printf("wSender end failed.\n");
-        close(sock);
-        return 0;
     }
 
 

@@ -53,6 +53,9 @@ int main(int argc, const char **argv){
     string output_dir = string(argv[3]);
     string log_dir = string(argv[4]);
 
+    //clear the log file
+    out2log(log_dir, 0, 0, 0, 0, 1);
+
     // create a UDP socket
     int s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (s == -1)
@@ -82,7 +85,7 @@ int main(int argc, const char **argv){
     while (1)
     { 
         char data_file_dir[256] = {0};
-        sprintf(data_file_dir, "%s/FILE-%d.out", output_dir, file_count);
+        sprintf(data_file_dir, "%s/FILE-%d.out", output_dir.c_str(), file_count);
 
         // wait for a new file
         char buffer[1510] = {0};
@@ -96,6 +99,7 @@ int main(int argc, const char **argv){
 
         // hanlde start header
         PacketHeader *header = (PacketHeader*)buffer;
+        printf("%u\n", header->seqNum);
         out2log(log_dir, header->type, header->seqNum, header->length, header->checksum, 0);
 
         //generate ack header
@@ -107,7 +111,7 @@ int main(int argc, const char **argv){
         out2log(log_dir, header->type, header->seqNum, header->length, header->checksum, 0);
 
         // receive actual data
-        char data[3000][1510] = {0}; // assume seqNum < 3000, packetSize < 1510
+        char data[2000][1510] = {0}; // assume seqNum < 3000, packetSize < 1510
         int seq_length[3000] = {0};
         int current_seq = -1, end_seq = -1;
         unsigned int my_checksum;
@@ -118,9 +122,10 @@ int main(int argc, const char **argv){
             for(int i = 0; i < window_size; i++)
             {
                 memset(buffer, 0, 1510);
-                byte_count = recvfrom(s, buffer, 1472, MSG_DONTWAIT, (struct sockaddr *) &add_client, &slen);
+                byte_count = recvfrom(s, (char *)buffer, 1472, MSG_DONTWAIT, (struct sockaddr *) &add_client, &slen);
                 if (byte_count != -1)
                 {
+                    //printf("byte_count: %d\n[%s]\n", byte_count, buffer);
                     packet_count++;
                     buffer[byte_count] = '\0';
                     // get header info
@@ -149,11 +154,16 @@ int main(int argc, const char **argv){
                         data[data_header->seqNum][data_header->length] = '\0';
 
                         // calculate local checksum
-                        my_checksum = crc32(data[data_header->seqNum], data_header->length);
+                        my_checksum = data_header->checksum;
+                        my_checksum = crc32(data[current_seq+1], data_header->length);
                         // if not match, drop packet
                         if (my_checksum != data_header->checksum)
                         {
                             memset(data[data_header->seqNum], 0, 1510);
+                            printf("checksum not match: seq%d, current_seq%d, expected checksum: %u, my checksum=%u\n",
+                            data_header->seqNum, current_seq, data_header->checksum, my_checksum);
+                            //printf("[%s] \n\n %u",data[data_header->seqNum], data_header->length);
+                            //return 0;
                         }
                         //if match, update current_seq
                         else
@@ -166,30 +176,31 @@ int main(int argc, const char **argv){
             }
 
             // prepare ack header
-            PacketHeader *ack_header;
-            ack_header->type = 3;
-            ack_header->length = 0;
+            PacketHeader ack_header;
+            ack_header.type = 3;
+            ack_header.length = 0;
             memset(ack_buffer, 0, 1510);
 
             //if end, break
             if (end_seq != -1)
             {
-                ack_header->seqNum = end_seq;
-                ack_header->checksum = 0;
-                memcpy(ack_buffer, ack_header, header_length);
-                sendto(s, ack_buffer, sizeof(ack_buffer), 0, (struct sockaddr*) &add_client, slen);
-                out2log(log_dir, ack_header->type, ack_header->seqNum, ack_header->length, ack_header->checksum, 0);
+                printf("end condition\n");
+                ack_header.seqNum = end_seq;
+                ack_header.checksum = 0;
+                memcpy(ack_buffer, &ack_header, header_length);
+                sendto(s, ack_buffer, 100, 0, (struct sockaddr*) &add_client, slen);
+                out2log(log_dir, ack_header.type, ack_header.seqNum, ack_header.length, ack_header.checksum, 0);
                 break;
             }
 
             //if not, ack for next packet
             else if (packet_count > 0)
             {
-                ack_header->seqNum = current_seq + 1;
-                ack_header->checksum = 0;
-                memcpy(ack_buffer, ack_header, header_length);
-                sendto(s, ack_buffer, sizeof(ack_buffer), 0, (struct sockaddr*) &add_client, slen);
-                out2log(log_dir, ack_header->type, ack_header->seqNum, ack_header->length, ack_header->checksum, 0);
+                ack_header.seqNum = current_seq + 1;
+                ack_header.checksum = 0;
+                memcpy(ack_buffer, &ack_header, header_length);
+                sendto(s, ack_buffer, 100, 0, (struct sockaddr*) &add_client, slen);
+                out2log(log_dir, ack_header.type, ack_header.seqNum, ack_header.length, ack_header.checksum, 0);
             }
         }
 
