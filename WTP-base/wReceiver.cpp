@@ -33,6 +33,11 @@ int main(int argc, const char **argv){
     string input = string(argv[4]);
     string log = string(argv[5]);
 
-    //send_start(hostname,port, input,log, size);
+    int listen_port = atoi(argv[1]);
+    int window_size = atoi(argv[2]);
+    string store_dir = string(argv[3]);
+    string log_dir = string(argv[4]);
+
+    
     return 0;
 }

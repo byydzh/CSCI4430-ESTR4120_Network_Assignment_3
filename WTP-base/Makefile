@@ -29,4 +29,8 @@ wSender: $(SENDER) $(RECEIVER)
 wReceiver: $(RECEIVER)
 	$(CXX) $(CXXFLAGS) $(RECEIVER) -o wReceiver
 
+clean:
+	rm -rf wSender *.dSYM
+	rm -rf wReceiver *.dSYM
+
 .PHONY: clean
