@@ -24,12 +24,17 @@
 using namespace std;
 using namespace chrono;
 
-static const int MAX_MESSAGE_SIZE = 256;
+static const int MAX_MESSAGE_SIZE = 1500;
+static const int MAX_AVAILABLE_SIZE = 1472;
+static const int MAX_ACTUAL_SIZE = 1456;
+static const int IP_HEADER = 20;
+static const int UDP_HEADER = 8;
+static const int WTP_HEADER = 16; 
 
 int main(int argc, const char **argv){
     int listen_port = atoi(argv[1]);
     int window_size = atoi(argv[2]);
-    string store_dir = string(argv[3]);
+    string output_dir = string(argv[3]);
     string log_dir = string(argv[4]);
 
     
