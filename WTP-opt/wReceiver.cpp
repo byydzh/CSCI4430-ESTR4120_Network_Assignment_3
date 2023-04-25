@@ -164,7 +164,7 @@ int main(int argc, const char **argv){
 
                     // calculate local checksum
                     my_checksum = data_header->checksum;
-                    my_checksum = crc32(data[current_seq+1], data_header->length);
+                    my_checksum = crc32(data[data_header->seqNum], data_header->length);
                     // if not match, drop packet
                     if (my_checksum != data_header->checksum)
                     {
@@ -185,10 +185,18 @@ int main(int argc, const char **argv){
                         memcpy(ack_buffer, &ack_header, header_length);
                         sendto(s, ack_buffer, 100, 0, (struct sockaddr*) &add_client, slen);
                         out2log(log_dir, ack_header.type, ack_header.seqNum, ack_header.length, ack_header.checksum, 0);
-                        if (packet_count == window_size)
+                        for (int j = current_seq; j <= ack_header.seqNum; j++)
                         {
-                            current_seq += window_size;
-                            packet_count = 0;
+                            if (j == -1 && seq_length[0] == 0)
+                            {
+                                current_seq = -1;
+                                break;
+                            }
+                            if (j != -1 && seq_length[j] == 0)
+                            {
+                                current_seq = j;
+                                break;
+                            }
                         }
                     }
                 }
