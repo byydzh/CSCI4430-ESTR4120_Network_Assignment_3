@@ -31,6 +31,16 @@ static const int IP_HEADER = 20;
 static const int UDP_HEADER = 8;
 static const int WTP_HEADER = 16; 
 
+void out2log(string log_name, unsigned int type, unsigned int seqNum,
+            unsigned int length, unsigned int checksum, int clear=0){
+    FILE *fp;
+    if(clear)
+        fp = fopen(log_name.c_str(), "w+");
+    else
+        fp = fopen(log_name.c_str(), "a");
+    fprintf(fp, "%u %u %u %u\n",type ,seqNum ,length ,checksum);
+    fclose(fp);
+}
 
 int main(int argc, const char **argv){
     string hostname = string(argv[1]);
