@@ -17,6 +17,9 @@
 #include <iostream>
 #include <chrono>
 #include <netinet/in.h>
+#include <random>
+#include <functional>
+#include <ctime>
 
 #include "crc32.h"
 #include "PacketHeader.h"
@@ -73,6 +76,15 @@ vector<string> read_file_chunks(const string& file_path) {
     return result;
 }
 
+unsigned long long generate_seed() {
+    auto timestamp = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+
+    random_device rd;
+    auto seed = (hash<unsigned long long>()(timestamp) ^ rd());
+
+    return seed;
+}
+
 int main(int argc, const char **argv){
     string hostname = string(argv[1]);
     int port = atoi(argv[2]);
@@ -84,7 +96,7 @@ int main(int argc, const char **argv){
     //clear the log file
     out2log(log, 0, 0, 0, 0, 1);
 
-    srand(time(NULL)+getpid()<<8);
+    srand(generate_seed());
     PacketHeader myHeader;
     myHeader.checksum = 0;
     myHeader.length = 0; // Length of data; 0 for ACK, START and END packets
@@ -162,7 +174,7 @@ int main(int argc, const char **argv){
     vector<string> chunks = read_file_chunks(input_dir);
     int chunks_num = (int)chunks.size();
     vector<int> chunks_flag(chunks_num);
-    for (int i = 0; i < chunks_num; ++i) {
+    for (int i = 0; i < chunks_num; i++) {
         chunks_flag[i] = 0;
     }
     chunks_num--;
@@ -194,25 +206,46 @@ int main(int argc, const char **argv){
 
         // receive the <ACK, j, 0, 0>
         auto start = std::chrono::system_clock::now();
+        int recv_ACK = 0;
         while(1){
+            auto ACK_elapsed = 251;
             memset(buf, 0, MAX_MESSAGE_SIZE);
-            valread = recvfrom(sock, buf, MAX_MESSAGE_SIZE, MSG_WAITALL, (struct sockaddr *) &addr, &slen);
+            valread = recvfrom(sock, buf, MAX_MESSAGE_SIZE, MSG_DONTWAIT, (struct sockaddr *) &addr, &slen);
             if (valread >= 0){
                 buf[valread] = '\0';
                 PacketHeader *ACK = (PacketHeader *)buf;
-                send_ptr = ACK->seqNum;
+                //send_ptr = ACK->seqNum;
+                chunks_flag[ACK->seqNum] = 1;
                 out2log(log, ACK->type, ACK->seqNum, ACK->length, ACK->checksum);
-                break;
+                recv_ACK += 1;
+                /*if(recv_ACK == 0){
+                    recv_ACK = 1;
+                    auto first_ACK = std::chrono::system_clock::now();
+                    ACK_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(first_ACK - start).count();
+                    continue;
+                }*/
             }
 
             // timeout
             auto end = std::chrono::system_clock::now();
             auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
             if (elapsed >= 500){
-                send_ptr = mem_ptr;
+                //send_ptr = mem_ptr;
+                break;
+            }
+            if( recv_ACK >= window_size || (50000*recv_ACK)/(elapsed*window_size+1)<101){
                 break;
             }
         }
+
+        send_ptr = mem_ptr + window_size;
+        for(int i=mem_ptr; i < mem_ptr + window_size; i++){
+            if (chunks_flag[i] == 0){
+                send_ptr = i;
+                break;
+            }
+        }
+        printf("send_ptr: %d \n", send_ptr);
 
         if(send_ptr > chunks_num)
             break;
