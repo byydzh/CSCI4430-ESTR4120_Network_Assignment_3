@@ -245,7 +245,7 @@ int main(int argc, const char **argv){
                 break;
             }
         }
-        printf("send_ptr: %d \n", send_ptr);
+        //printf("send_ptr: %d \n", send_ptr);
 
         if(send_ptr > chunks_num)
             break;

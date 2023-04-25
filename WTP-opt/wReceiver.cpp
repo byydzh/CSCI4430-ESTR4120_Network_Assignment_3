@@ -153,7 +153,7 @@ int main(int argc, const char **argv){
                 }
 
                 // else handle data part
-                if(data_header->type == 2 && data_header->seqNum > current_seq && data_header->seqNum <= current_seq+window_size)
+                if(data_header->type == 2 && (int)data_header->seqNum > current_seq && data_header->seqNum <= current_seq+window_size)
                 {
                     // store data to buffer
                     for (int j = 0; j < data_header->length; j++)
@@ -185,7 +185,7 @@ int main(int argc, const char **argv){
                         memcpy(ack_buffer, &ack_header, header_length);
                         sendto(s, ack_buffer, 100, 0, (struct sockaddr*) &add_client, slen);
                         out2log(log_dir, ack_header.type, ack_header.seqNum, ack_header.length, ack_header.checksum, 0);
-                        for (int j = current_seq; j <= ack_header.seqNum; j++)
+                        for (int j = current_seq; j <= current_seq+window_size; j++)
                         {
                             if (j == -1 && seq_length[0] == 0)
                             {
@@ -194,7 +194,7 @@ int main(int argc, const char **argv){
                             }
                             if (j != -1 && seq_length[j] == 0)
                             {
-                                current_seq = j;
+                                current_seq = j-1;
                                 break;
                             }
                         }
