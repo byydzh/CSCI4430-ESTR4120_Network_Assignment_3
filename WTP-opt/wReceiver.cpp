@@ -148,13 +148,27 @@ int main(int argc, const char **argv){
                     ack_header.checksum = 0;
                     memcpy(ack_buffer, &ack_header, header_length);
                     sendto(s, ack_buffer, 100, 0, (struct sockaddr*) &add_client, slen);
+                    sendto(s, ack_buffer, 100, 0, (struct sockaddr*) &add_client, slen);
+                    sendto(s, ack_buffer, 100, 0, (struct sockaddr*) &add_client, slen);
                     out2log(log_dir, ack_header.type, ack_header.seqNum, ack_header.length, ack_header.checksum, 0);
                     break;
                 }
 
                 // else handle data part
-                if(data_header->type == 2 && (int)data_header->seqNum > current_seq && data_header->seqNum <= current_seq+window_size)
+                printf("judge: type:%d seqNum:%d curSeq:%d \n",data_header->type, data_header->seqNum, current_seq);
+                printf("%d %d %d \n",data_header->type == 2 , (int)data_header->seqNum > current_seq , data_header->seqNum <= current_seq+window_size);
+                if(data_header->type == 2 && data_header->seqNum <= current_seq+window_size)
                 {
+                    //below window, directly ack back
+                    if ((int)data_header->seqNum > current_seq) 
+                    {
+                        ack_header.seqNum = data_header->seqNum;
+                        ack_header.checksum = 0;
+                        memcpy(ack_buffer, &ack_header, header_length);
+                        sendto(s, ack_buffer, 100, 0, (struct sockaddr*) &add_client, slen);
+                        continue;
+                    }
+                    
                     // store data to buffer
                     for (int j = 0; j < data_header->length; j++)
                     {
@@ -169,6 +183,8 @@ int main(int argc, const char **argv){
                     if (my_checksum != data_header->checksum)
                     {
                         memset(data[data_header->seqNum], 0, 1510);
+                        printf("checksum not match: seq%d, current_seq%d, expected checksum: %u, my checksum=%u\n",
+                            data_header->seqNum, current_seq, data_header->checksum, my_checksum);
                         continue;
                             //printf("checksum not match: seq%d, current_seq%d, expected checksum: %u, my checksum=%u\n",
                             //data_header->seqNum, current_seq, data_header->checksum, my_checksum);
@@ -183,6 +199,7 @@ int main(int argc, const char **argv){
                         ack_header.seqNum = data_header->seqNum;
                         ack_header.checksum = 0;
                         memcpy(ack_buffer, &ack_header, header_length);
+                        printf("send the %u\n",ack_header.seqNum);
                         sendto(s, ack_buffer, 100, 0, (struct sockaddr*) &add_client, slen);
                         out2log(log_dir, ack_header.type, ack_header.seqNum, ack_header.length, ack_header.checksum, 0);
                         for (int j = current_seq; j <= current_seq+window_size; j++)
