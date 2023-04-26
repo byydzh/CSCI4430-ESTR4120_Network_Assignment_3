@@ -187,6 +187,8 @@ int main(int argc, const char **argv){
         for(int i=0; i<window_size; i++){
             if(send_ptr > chunks_num)
                 break;
+            if(chunks_flag[send_ptr] == 1)
+                continue;
             myHeader.seqNum = send_ptr;
             myHeader.type = 2;
             myHeader.length = chunks[send_ptr].length();
@@ -218,8 +220,7 @@ int main(int argc, const char **argv){
                 chunks_flag[ACK->seqNum] = 1;
                 out2log(log, ACK->type, ACK->seqNum, ACK->length, ACK->checksum);
                 recv_ACK += 1;
-                /*if(recv_ACK == 0){
-                    recv_ACK = 1;
+                /*if(recv_ACK == 1){
                     auto first_ACK = std::chrono::system_clock::now();
                     ACK_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(first_ACK - start).count();
                     continue;
@@ -233,7 +234,7 @@ int main(int argc, const char **argv){
                 //send_ptr = mem_ptr;
                 break;
             }
-            if( recv_ACK >= window_size || (50000*recv_ACK)/(elapsed*window_size+1)<101){
+            if( recv_ACK >= window_size ){
                 break;
             }
         }
