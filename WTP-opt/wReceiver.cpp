@@ -160,7 +160,7 @@ int main(int argc, const char **argv){
                 if(data_header->type == 2 && data_header->seqNum <= current_seq+window_size)
                 {
                     //below window, directly ack back
-                    if ((int)data_header->seqNum > current_seq) 
+                    if ((int)data_header->seqNum <= current_seq) 
                     {
                         ack_header.seqNum = data_header->seqNum;
                         ack_header.checksum = 0;
