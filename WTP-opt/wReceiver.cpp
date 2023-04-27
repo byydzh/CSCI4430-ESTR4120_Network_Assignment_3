@@ -50,6 +50,7 @@ int main(int argc, const char **argv){
     // handle input command
     int listen_port = atoi(argv[1]);
     int window_size = atoi(argv[2]);
+    printf("receiver's window size: %d\n", window_size);
     string output_dir = string(argv[3]);
     string log_dir = string(argv[4]);
 
@@ -202,7 +203,7 @@ int main(int argc, const char **argv){
                         printf("send the %u\n",ack_header.seqNum);
                         sendto(s, ack_buffer, 100, 0, (struct sockaddr*) &add_client, slen);
                         out2log(log_dir, ack_header.type, ack_header.seqNum, ack_header.length, ack_header.checksum, 0);
-                        for (int j = current_seq; j <= current_seq+window_size; j++)
+                        for (int j = current_seq; j <= current_seq+window_size+5; j++)
                         {
                             if (j == -1 && seq_length[0] == 0)
                             {
